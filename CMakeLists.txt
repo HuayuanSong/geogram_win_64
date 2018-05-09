@@ -22,14 +22,14 @@ endif()
 # Optional modules
 # (can be overriden in CMakeOptions.txt)
 
-option(GEOGRAM_WITH_GRAPHICS "Viewers and geogram_gfx library" ON)
-option(GEOGRAM_WITH_LEGACY_NUMERICS "Legacy numerical libraries" ON)
+option(GEOGRAM_WITH_GRAPHICS "Viewers and geogram_gfx library" OFF)
+option(GEOGRAM_WITH_LEGACY_NUMERICS "Legacy numerical libraries" OFF)
 option(GEOGRAM_WITH_HLBFGS "Non-linear solver (Yang Liu's HLBFGS)" ON)
 option(GEOGRAM_WITH_TETGEN "Tetrahedral mesher (Hang Si's TetGen)" ON)
 option(GEOGRAM_WITH_TRIANGLE "Triangle mesher (Jonathan Shewchuk's triangle)" ON)
 option(GEOGRAM_WITH_EXPLORAGRAM "Experimental code (hexahedral meshing pipeline and optimal transport)" ON)
-option(GEOGRAM_WITH_LUA "Built-in LUA interpreter" ON)
-option(GEOGRAM_LIB_ONLY "Libraries only (no example programs/no viewer)" OFF)
+option(GEOGRAM_WITH_LUA "Built-in LUA interpreter" OFF)
+option(GEOGRAM_LIB_ONLY "Libraries only (no example programs/no viewer)" ON)
 option(GEOGRAM_WITH_FPG "Predicate generator (Sylvain Pion's FPG)" OFF)
 option(GEOGRAM_USE_SYSTEM_GLFW3 "Use the version of GLFW3 installed in the system if found" OFF)
 
