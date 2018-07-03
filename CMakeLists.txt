@@ -81,7 +81,7 @@ if(VORPALINE_BUILD_DYNAMIC)
    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif()
 
-set(CMAKE_INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/lib")
+#set(CMAKE_INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 
 # uninstall target
 # Needs to be created before add_subdirectory() because GLFw has
