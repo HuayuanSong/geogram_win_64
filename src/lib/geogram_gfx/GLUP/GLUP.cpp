@@ -45,7 +45,6 @@
 
 #include <geogram_gfx/GLUP/GLUP.h>
 #include <geogram_gfx/GLUP/GLUP_context_GLSL.h>
-#include <geogram_gfx/GLUP/GLUP_context_VanillaGL.h>
 #include <geogram_gfx/GLUP/GLUP_context_ES.h>
 #include <geogram_gfx/basic/GLSL.h>
 #include <geogram/basic/logger.h>
@@ -56,6 +55,11 @@
 #include <emscripten.h>
 #pragma GCC diagnostic ignored "-Wdollar-in-identifier-extension"
 #endif
+
+#ifdef GEO_OS_ANDROID
+#  pragma GCC diagnostic ignored "-Wpointer-bool-conversion"
+#endif
+
 
 /*****************************************************************************/
 
@@ -72,15 +76,7 @@ namespace {
 				<< CmdLine::get_config_file_name() << "\' in " << std::endl;
 	    Logger::out("GLUP") << "     your home directory (" << FileSystem::home_directory() << ")" << std::endl;
 	    Logger::out("GLUP") << "     with: " << std::endl;
-	    Logger::out("GLUP") << "       gfx:GL_profile=core" << std::endl;
-	    Logger::out("GLUP") << " (3) create a file named \'"
-				<< CmdLine::get_config_file_name() << "\' in " << std::endl;
-	    Logger::out("GLUP") << "     your home directory (" << FileSystem::home_directory() << ")" << std::endl;
-	    Logger::out("GLUP") << "     with: " << std::endl;
-	    Logger::out("GLUP") << "       gfx:GL_profile=compatibility" << std::endl;
-	    Logger::out("GLUP") << "       gfx:GLUP_profile=VanillaGL" << std::endl;
-	    Logger::out("GLUP") << " Note: solution (3) will result in degraded performance."
-				<< std::endl;
+	    Logger::out("GLUP") << "       gfx:GLUP_profile=GLUPES2" << std::endl;
 	}
     }
 }
@@ -89,15 +85,12 @@ namespace {
 
 namespace GLUP {
     using namespace GEO;
-    static Context* current_context_ = nil;
+    static Context* current_context_ = nullptr;
     static std::set<Context*> all_contexts_;
     static bool initialized_ = false;
     static void cleanup() {
-        for(
-            std::set<Context*>::iterator it=all_contexts_.begin();
-            it != all_contexts_.end(); ++it
-        ) {
-            delete *it;
+        for(auto ctxt : all_contexts_) {
+            delete ctxt;
         }
         all_contexts_.clear();
     }
@@ -137,7 +130,7 @@ namespace {
     static GLUPenum stage_to_target(char*& comment_str) {
 	char* p1 = comment_str + 8;
 	char* p2 = strchr(p1, '\n');
-	if(p2 == nil) {
+	if(p2 == nullptr) {
 	    Logger::err("GLSL")
 		<< "Missing CR in //stage GL_xxxxx declaration"
 		<< std::endl;
@@ -181,7 +174,7 @@ GLUPuint glupCompileProgram(const char* source_in) {
     bool has_vertex_shader = false;
     for(
 	p = strstr(p,"//stage");
-	(p != nil) && (*p != '\0');
+	(p != nullptr) && (*p != '\0');
 	p = strstr(p,"//stage ")
     ) {
 	GLUPenum target = stage_to_target(p);
@@ -259,8 +252,9 @@ void glupBindUniformState(GLUPuint program) {
 }
 
 
-#if defined(GEO_OS_EMSCRIPTEN) || defined(GEO_OS_APPLE)
-#else
+#if !defined(GEO_OS_EMSCRIPTEN) && \
+    !defined(GEO_OS_APPLE) && \
+    !defined(GEO_OS_ANDROID)
 
 /**
  * \brief Tests whether tessellation shaders are supported by OpenGL.
@@ -304,21 +298,24 @@ static bool supports_tessellation_shader() {
 #endif
 
 GLUPcontext glupCreateContext() {
+
     
     if(!GLUP::initialized_) {
         GLUP::initialized_ = true;
         atexit(GLUP::cleanup);
     }
 
+    
     GEO_CHECK_GL();
     
     std::string GLUP_profile = GEO::CmdLine::get_arg("gfx:GLUP_profile");
-    GLUP::Context* result = nil;
+    GLUP::Context* result = nullptr;
 
     if(GLUP_profile == "auto") {
       
-#if defined(GEO_OS_EMSCRIPTEN) || defined(GEO_OS_APPLE)
-      GLUP_profile = "GLUPES2";
+#if defined(GEO_OS_EMSCRIPTEN) || defined(GEO_OS_APPLE) || defined(GEO_OS_ANDROID)
+	GLUP_profile = "GLUPES2";
+//	GLUP_profile = "GLUP150"; // Does something but bugged / not fully functional.
 #else
       GEO_CHECK_GL();      
       double GLSL_version = GEO::GLSL::supported_language_version();
@@ -364,7 +361,7 @@ GLUPcontext glupCreateContext() {
 	    downgrade_message();	    
 	    GLUP_profile = "GLUP150";
 	    delete result;
-	    result = nil;
+	    result = nullptr;
 	}
     }
 #endif
@@ -381,7 +378,7 @@ GLUPcontext glupCreateContext() {
 	    downgrade_message();	    
 	    GLUP_profile = "GLUPES2";
 	    delete result;
-	    result = nil;
+	    result = nullptr;
 	}
     }
 #endif
@@ -393,41 +390,18 @@ GLUPcontext glupCreateContext() {
 	    result->setup();	    	    
         } catch(...) {
 	    GEO::Logger::warn("GLUP")
-	        << "Caught an exception in GLUPES2, downgrading to VanillaGL"
+	        << "Caught an exception in GLUPES2"
 	        << std::endl;
 	    downgrade_message();	    
-	    GLUP_profile = "VanillaGL";
 	    delete result;
-	    result = nil;
+	    result = nullptr;
 	}
     }
 #endif
 
-#ifdef GEO_GL_LEGACY    
-    if(GLUP_profile == "VanillaGL") {
-        if(GEO::CmdLine::get_arg("gfx:GL_profile") != "compatibility") {    
-	    GEO::Logger::warn("GLUP")
-	      << "Cannot switch to VanillaGL" << std::endl;
-	    GEO::Logger::warn("GLUP")
-	      << "Needs gfx:GL_profile=compatibility" << std::endl;
-	} else {
-	    try {            
-	        result = new GLUP::Context_VanillaGL;
-		result->setup();	    	    
-	    } catch(...) {
-	        GEO::Logger::warn("GLUP")
-		  << "Caught an exception in VanillaGL"
-		  << std::endl;
-		delete result;
-		result = nil;
-	    }
-	}
-    }
-#endif
-
-    if(result == nil) {
-        GEO::Logger::err("GLUP") << "Could not create context"
-			    << std::endl;
+    if(result == nullptr) {
+         GEO::Logger::err("GLUP") << "Could not create context"
+	                          << std::endl;
     } else {
         GLUP::all_contexts_.insert(result);
     }
@@ -441,12 +415,12 @@ void glupDeleteContext(GLUPcontext context_in) {
     GLUP::Context* context =
         reinterpret_cast<GLUP::Context*>(context_in);
 
-    std::set<GLUP::Context*>::iterator it = GLUP::all_contexts_.find(context);
+    auto it = GLUP::all_contexts_.find(context);
     geo_assert(it != GLUP::all_contexts_.end());
     GLUP::all_contexts_.erase(it);
     
     if(GLUP::current_context_ == context) {
-        GLUP::current_context_ = nil;
+        GLUP::current_context_ = nullptr;
     }
     delete context;
 }
@@ -465,18 +439,6 @@ const char* glupCurrentProfileName() {
 void glupMakeCurrent(GLUPcontext context) {
     GEO_CHECK_GL();
     GLUP::current_context_ = reinterpret_cast<GLUP::Context*>(context);
-}
-
-void glupCopyFromGLState(GLUPbitfield which_attributes) {
-    GEO_CHECK_GL();    
-    GLUP::current_context_->copy_from_GL_state(which_attributes);
-    GEO_CHECK_GL();        
-}
-
-void glupCopyToGLState(GLUPbitfield which_attributes) {
-    GEO_CHECK_GL();            
-    GLUP::current_context_->copy_to_GL_state(which_attributes);
-    GEO_CHECK_GL();            
 }
 
 GLUPboolean glupPrimitiveSupportsArrayMode(GLUPprimitive prim) {
@@ -663,8 +625,8 @@ GLUPint glupGetMeshWidth() {
 
 void glupSetCellsShrink(GLUPfloat x) {
     GEO_CHECK_GL();                
-    x = GEO::geo_min(x, 1.0f);
-    x = GEO::geo_max(x, 0.0f);
+    x = std::min(x, 1.0f);
+    x = std::max(x, 0.0f);
     GLUP::current_context_->uniform_state().cells_shrink.set(x);
 }
 
@@ -1558,7 +1520,7 @@ namespace GLUP {
             type(GL_FLOAT),
             normalized(GL_FALSE),
             stride(0),
-            pointer(NULL),
+            pointer(nullptr),
             buffer_binding(0) {
         }
 
@@ -1634,7 +1596,7 @@ namespace GLUP {
                 glDisableVertexAttribArray(index);            
             }
             glBindBuffer(GL_ARRAY_BUFFER, GLuint(buffer_binding));
-            if(buffer_binding != 0 || pointer != nil ) {
+            if(buffer_binding != 0 || pointer != nullptr ) {
                 glVertexAttribPointer(
                     index, size, GLenum(type),
                     GLboolean(normalized), GLsizei(stride), pointer
@@ -1652,7 +1614,7 @@ namespace GLUP {
             type=GL_FLOAT;
             normalized=GL_FALSE;
             stride=0;
-            pointer=NULL;
+            pointer=nullptr;
             buffer_binding=0; 
         }
         
@@ -1678,7 +1640,7 @@ namespace GLUP {
          * \details For GLUP, only 4 are needed. Can be
          *  increased if need be.
          */
-        static const GLint MAX_VERTEX_ATTRIB = 4;
+        enum {MAX_VERTEX_ATTRIB = 4};
 
         /**
          * \brief VertexArrayObject constructor.
@@ -1687,8 +1649,8 @@ namespace GLUP {
             element_array_buffer_binding_(0) {
             if(max_vertex_attrib == 0) {
                 glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &max_vertex_attrib);
-                max_vertex_attrib = geo_min(
-                    max_vertex_attrib, MAX_VERTEX_ATTRIB
+                max_vertex_attrib = std::min(
+                    max_vertex_attrib, GLint(MAX_VERTEX_ATTRIB)
                 );
             }
         }
@@ -1742,7 +1704,7 @@ namespace GLUP {
         GLint element_array_buffer_binding_;
     };
 
-
+    
     /**
      * \brief Manages the emulated vertex array objects.
      */
@@ -1761,9 +1723,9 @@ namespace GLUP {
          */
         ~VertexArrayObjectAllocator() {
             for(index_t i=0; i<slots_.size(); ++i) {
-                if(slots_[i].VAO != nil) {
+                if(slots_[i].VAO != nullptr) {
                     delete slots_[i].VAO;
-                    slots_[i].VAO = nil;
+                    slots_[i].VAO = nullptr;
                 }
             }
         }
@@ -1818,7 +1780,7 @@ namespace GLUP {
              * \brief Slot constructor.
              */
             Slot() :
-                VAO(nil), next(0) {
+                VAO(nullptr), next(0) {
             }
 
             /**
@@ -1858,7 +1820,7 @@ void glupGenVertexArrays(GLUPsizei n, GLUPuint* arrays) {
 #ifdef GEO_OS_EMSCRIPTEN
         glGenVertexArraysOES(n, arrays);
 #else
-	if(glGenVertexArrays == nil) {
+	if(!glGenVertexArrays) {
 	    GLUP::vertex_array_emulate = true;
 	    glupGenVertexArrays(n,arrays);
 	    return;
@@ -1874,10 +1836,10 @@ void glupDeleteVertexArrays(GLUPsizei n, const GLUPuint *arrays) {
             GLUP::VAO_allocator.delete_VAO(arrays[i]);
         }
     } else {
-#ifdef GEO_OS_EMSCRIPTEN
+#if defined(GEO_OS_EMSCRIPTEN) 
         glDeleteVertexArraysOES(n, arrays);        
 #else
-	if(glDeleteVertexArrays == nil) {
+	if(!glDeleteVertexArrays) {
 	    GLUP::vertex_array_emulate = true;
 	    glupDeleteVertexArrays(n,arrays);
 	    return;
@@ -1903,10 +1865,10 @@ void glupBindVertexArray(GLUPuint array) {
             }
         }
     } else {
-#ifdef GEO_OS_EMSCRIPTEN
+#if defined(GEO_OS_EMSCRIPTEN) 
         glBindVertexArrayOES(array);        
 #else
-	if(glBindVertexArray == nil) {
+	if(!glBindVertexArray) {
 	    GLUP::vertex_array_emulate = true;
 	    glupBindVertexArray(array);
 	    return;

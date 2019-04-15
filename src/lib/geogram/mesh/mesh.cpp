@@ -470,7 +470,7 @@ namespace GEO {
     void MeshFacets::clear(bool keep_attributes, bool keep_memory) {
         facet_corners_.clear_store(keep_attributes, keep_memory);
         clear_store(keep_attributes, keep_memory);
-        is_simplicial_ = true;
+	is_simplicial();
     }
     
     void MeshFacets::delete_elements(
@@ -802,7 +802,7 @@ namespace GEO {
         bool steal_args
     ) {
         index_t nb_triangles = triangles.size()/3;
-        is_simplicial_ = true;
+	is_simplicial();
         facet_ptr_.clear();
         resize_store(nb_triangles);
         if(steal_args) {
@@ -831,7 +831,7 @@ namespace GEO {
 
     namespace MeshCellDescriptors {
 
-        CellDescriptor tet_descriptor = {
+        GEOGRAM_API CellDescriptor tet_descriptor = {
             4,         // nb_vertices
             4,         // nb_facets
             {3,3,3,3}, // nb_vertices in facet
@@ -851,7 +851,7 @@ namespace GEO {
         };
         
 
-        CellDescriptor hex_descriptor = {
+        GEOGRAM_API CellDescriptor hex_descriptor = {
             8,             // nb_vertices
             6,             // nb_facets
             {4,4,4,4,4,4}, // nb_vertices in facet
@@ -874,7 +874,7 @@ namespace GEO {
             }
         };
 
-        CellDescriptor prism_descriptor = {
+        GEOGRAM_API CellDescriptor prism_descriptor = {
             6,             // nb_vertices
             5,             // nb_facets
             {3,3,4,4,4},   // nb_vertices in facet
@@ -895,7 +895,7 @@ namespace GEO {
         };
 
 
-        CellDescriptor pyramid_descriptor = {
+        GEOGRAM_API CellDescriptor pyramid_descriptor = {
             5,             // nb_vertices
             5,             // nb_facets
             {4,3,3,3,3},   // nb_vertices in facet
@@ -915,7 +915,7 @@ namespace GEO {
             }
         };
 
-        CellDescriptor connector_descriptor = {
+        GEOGRAM_API CellDescriptor connector_descriptor = {
             4,             // nb_vertices
             3,             // nb_facets
             {4,3,3},       // nb_vertices in facet
@@ -933,7 +933,7 @@ namespace GEO {
             }         
         };
 
-        CellDescriptor* cell_type_to_cell_descriptor[5] = { 
+        GEOGRAM_API CellDescriptor* cell_type_to_cell_descriptor[5] = { 
             &tet_descriptor, 
             &hex_descriptor, 
             &prism_descriptor, 
@@ -1152,7 +1152,7 @@ namespace GEO {
             for(index_t new_cell = 0; new_cell<nb(); ++new_cell) {
                 index_t old_cell = permutation[new_cell];
                 index_t cell_size =
-                    geo_max(nb_vertices(old_cell), nb_facets(old_cell));
+                    std::max(nb_vertices(old_cell), nb_facets(old_cell));
                 for(index_t i=0; i<cell_size; ++i) {
                     cell_corner_facets_permutation.push_back(
                         cell_ptr_[old_cell]+i
@@ -1209,7 +1209,7 @@ namespace GEO {
             for(index_t new_c=0; new_c<nb(); ++new_c) {
                 index_t old_c = permutation[new_c];
                 index_t old_ptr = cell_ptr_[old_c];
-                index_t cell_size = geo_max(
+                index_t cell_size = std::max(
                     nb_vertices(old_c), nb_facets(old_c)
                 );
                 new_cell_ptr[new_c] = new_ptr;
@@ -1701,16 +1701,24 @@ namespace GEO {
     }
 
     void MeshCells::compute_borders() {
+	Attribute<index_t> facet_cell;
+	compute_borders(facet_cell);
+    }
+    
+    void MeshCells::compute_borders(Attribute<index_t>& facet_cell) {
         mesh_.facets.clear(true,false);
         if(is_simplicial_) {
             for(index_t t=0; t<nb(); ++t) {
                 for(index_t f=0; f<4; ++f) {
                     if(adjacent(t,f) == NO_CELL) {
-                        mesh_.facets.create_triangle(
+                        index_t new_f = mesh_.facets.create_triangle(
                             tet_facet_vertex(t,f,0),
                             tet_facet_vertex(t,f,1),
                             tet_facet_vertex(t,f,2)
                         );
+			if(facet_cell.is_bound()) {
+			    facet_cell[new_f] = t;
+			}
                     }
                 }
             }
@@ -1718,16 +1726,17 @@ namespace GEO {
             for(index_t c=0; c<nb(); ++c) {
                 for(index_t f=0; f<nb_facets(c); ++f) {
                     if(adjacent(c,f) == NO_CELL) {
+			index_t new_f = index_t(-1);
                         switch(facet_nb_vertices(c,f)) {
                         case 3:
-                            mesh_.facets.create_triangle(
+                            new_f = mesh_.facets.create_triangle(
                                 facet_vertex(c,f,0),
                                 facet_vertex(c,f,1),
                                 facet_vertex(c,f,2)
                             );
                             break;
                         case 4:
-                            mesh_.facets.create_quad(
+                            new_f = mesh_.facets.create_quad(
                                 facet_vertex(c,f,0),
                                 facet_vertex(c,f,1),
                                 facet_vertex(c,f,2),
@@ -1737,6 +1746,9 @@ namespace GEO {
                         default:
                             geo_assert_not_reached;
                         }
+			if(facet_cell.is_bound()) {
+			    facet_cell[new_f] = c;
+			}
                     }
                 }
             }
@@ -2015,7 +2027,7 @@ namespace GEO {
         case MESH_ALL_SUBELEMENTS:
             geo_assert_not_reached;
         }
-        return *(MeshSubElementsStore*)nil;
+        return *(MeshSubElementsStore*)nullptr;
     }
     
     const MeshSubElementsStore& Mesh::get_subelements_by_type(
@@ -2041,7 +2053,7 @@ namespace GEO {
         case MESH_ALL_SUBELEMENTS:
             geo_assert_not_reached;
         }
-        return *(MeshSubElementsStore*)nil;
+        return *(MeshSubElementsStore*)nullptr;
     }
     
     std::string Mesh::subelements_type_to_name(MeshElementsFlags what) {

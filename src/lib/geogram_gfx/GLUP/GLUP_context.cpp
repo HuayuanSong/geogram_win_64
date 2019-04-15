@@ -53,6 +53,10 @@
 
 #include <geogram/bibliography/bibliography.h>
 
+#ifdef GEO_OS_ANDROID
+#  pragma GCC diagnostic ignored "-Wpointer-bool-conversion"
+#  pragma GCC diagnostic ignored "-Wtautological-pointer-compare"
+#endif
 
 // TODO: for points and spheres: early fragment tests, depth greater
 // (+ vertex shader that "drags the point to the camera" in such a way
@@ -80,7 +84,7 @@ namespace {
 	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
 	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nil);
+	geo_assert(ctxt != nullptr);
 	ctxt->get_vertex_shader_preamble_pseudo_file(sources);
 	sources.push_back("#define ");
 	sources.push_back(ctxt->profile_name());
@@ -91,7 +95,7 @@ namespace {
 	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
 	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nil);
+	geo_assert(ctxt != nullptr);
 	ctxt->get_fragment_shader_preamble_pseudo_file(sources);
 	sources.push_back("#define ");
 	sources.push_back(ctxt->profile_name());
@@ -102,7 +106,7 @@ namespace {
 	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
 	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nil);
+	geo_assert(ctxt != nullptr);
 	ctxt->get_geometry_shader_preamble_pseudo_file(sources);
 	sources.push_back("#define ");
 	sources.push_back(ctxt->profile_name());
@@ -113,7 +117,7 @@ namespace {
 	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
 	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nil);
+	geo_assert(ctxt != nullptr);
 	ctxt->get_marching_cells_pseudo_file(sources);
 	sources.push_back("#define ");
 	sources.push_back(ctxt->profile_name());
@@ -124,7 +128,7 @@ namespace {
 	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
 	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nil);
+	geo_assert(ctxt != nullptr);
 	ctxt->get_tess_control_shader_preamble_pseudo_file(sources);
 	sources.push_back("#define ");
 	sources.push_back(ctxt->profile_name());
@@ -135,7 +139,7 @@ namespace {
 	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
 	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nil);
+	geo_assert(ctxt != nullptr);
 	ctxt->get_tess_evaluation_shader_preamble_pseudo_file(sources);
 	sources.push_back("#define ");
 	sources.push_back(ctxt->profile_name());
@@ -146,7 +150,7 @@ namespace {
 	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
 	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nil);
+	geo_assert(ctxt != nullptr);
 	ctxt->get_toggles_pseudo_file(sources);
     }
 
@@ -154,7 +158,7 @@ namespace {
 	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
 	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nil);
+	geo_assert(ctxt != nullptr);
 	ctxt->get_primitive_pseudo_file(sources);
     }
 }
@@ -228,7 +232,7 @@ namespace GLUP {
         // the number of extensions, then extension names one extension
         // at a time using glGetStringi
         if(use_core_profile_) {
-            if(glGetStringi != 0) {
+            if(glGetStringi != nullptr) {
                 GLuint num_ext;
                 glGetIntegerv(GL_NUM_EXTENSIONS, (GLint*)&num_ext);
                 if(num_ext != 0) {
@@ -254,10 +258,10 @@ namespace GLUP {
         // support glGetStringi...
         
         const char* extensions = (const char*)(glGetString(GL_EXTENSIONS));
-        if(extensions == nil) {
+        if(extensions == nullptr) {
             return false;
         }
-        return (strstr(extensions, extension.c_str()) != nil);
+        return (strstr(extensions, extension.c_str()) != nullptr);
     }
     
     static const char* primitive_name[GLUP_NB_PRIMITIVES] = {
@@ -491,7 +495,7 @@ namespace GLUP {
         uniform_buffer_=0;
         uniform_binding_point_=0;
         uniform_buffer_size_=0;
-        uniform_buffer_data_=nil;
+        uniform_buffer_data_=nullptr;
         uniform_buffer_dirty_=true;
 	lighting_dirty_=true;
 	
@@ -508,7 +512,7 @@ namespace GLUP {
             (CmdLine::get_arg("gfx:GL_profile") == "ES");            
         
         user_program_ = 0;
-        world_clip_plane_ = nil;
+        world_clip_plane_ = nullptr;
         latest_program_ = 0;
         toggles_config_ = 0;
 
@@ -615,8 +619,14 @@ namespace GLUP {
         //  create_vertex_program_that_uses_all_UBO_variables()        
 
         static const char* shader_source_header_ =
-            "#version 150 core \n" ; 
-
+#ifdef GEO_OS_ANDROID
+            "#version 300 es\n"
+	    "precision highp float;\n"
+            "precision lowp sampler3D;\n" ; 	    	
+#else	    
+            "#version 150 core\n" ; 
+#endif
+	
         static const char* fragment_shader_source_ =
             "out vec4 colorOut;                      \n"
             "void main() {                           \n"
@@ -628,20 +638,20 @@ namespace GLUP {
             shader_source_header_,
             Context::uniform_state_declaration(),
             create_vertex_program_that_uses_all_UBO_variables().c_str(),
-            0
+            nullptr
         );
 
         GLuint GLUP_fragment_shader = GLSL::compile_shader(
             GL_FRAGMENT_SHADER,
             shader_source_header_,
             fragment_shader_source_,
-            0
+            nullptr
         );
 
         default_program_ = GLSL::create_program_from_shaders(
             GLUP_vertex_shader,
             GLUP_fragment_shader,
-            0
+            nullptr
         );
 
         // Get UBO size
@@ -808,7 +818,7 @@ namespace GLUP {
                 immediate_state_.buffer[i].VBO(),
                 GL_ARRAY_BUFFER,
                 immediate_state_.buffer[i].size_in_bytes(),
-                nil // no need to copy the buffer, it will be overwritten after.
+                nullptr // no need to copy the buffer, it will be overwritten after.
             );
         }
         
@@ -863,168 +873,6 @@ namespace GLUP {
             default_program_, name.c_str()
         );
         return uniform_buffer_data_ + offset;
-    }
-
-    void Context::copy_from_GL_state(GLUPbitfield which_attributes) {
-#ifndef GEO_GL_LEGACY
-        geo_argused(which_attributes);
-        return;
-#else        
-        // No "GL state" in core profile.
-        if(use_core_profile_) {
-            return;
-        }
-        
-        uniform_buffer_dirty_ = true;
-        
-        //  I observed that without these instructions,
-        // glGet() does not always
-        // return the latest set values under Windows.
-        glFlush();
-        glFinish();
-
-        if(which_attributes & GLUP_MATRICES_ATTRIBUTES_BIT) {
-            matrices_dirty_ = true;            
-            glGetFloatv(
-                GL_PROJECTION_MATRIX,
-                matrix_stack_[GLUP_PROJECTION_MATRIX].top()
-            );
-            glGetFloatv(
-                GL_MODELVIEW_MATRIX,
-                matrix_stack_[GLUP_MODELVIEW_MATRIX].top()
-            );
-            glGetFloatv(
-                GL_TEXTURE_MATRIX,
-                matrix_stack_[GLUP_TEXTURE_MATRIX].top()
-            );
-        }
-
-        if(which_attributes & GLUP_CLIPPING_ATTRIBUTES_BIT) {
-            uniform_state_.toggle[GLUP_CLIPPING].set(
-                glIsEnabled(GL_CLIP_PLANE0)
-            );
-            GLdouble clip_plane_d[4];
-            glGetClipPlane(GL_CLIP_PLANE0, clip_plane_d);
-            copy_vector(
-                uniform_state_.clip_plane.get_pointer(), clip_plane_d, 4
-            );
-
-	    mult_matrix_vector(
-                uniform_state_.world_clip_plane.get_pointer(),
-                uniform_state_.modelview_matrix.get_pointer(),
-                uniform_state_.clip_plane.get_pointer()            
-            );
-
-	    GLfloat projection_invert[16];
-	    GLboolean OK = invert_matrix(
-		projection_invert,
-		uniform_state_.projection_matrix.get_pointer()
-	    );
-	    if(!OK) {
-		Logger::warn("GLUP") << "Singular projection matrix"
-				     << std::endl;
-		show_matrix(uniform_state_.projection_matrix.get_pointer());
-	    }
-	    mult_matrix_vector(
-		uniform_state_.clip_clip_plane.get_pointer(),
-		projection_invert,
-		uniform_state_.clip_plane.get_pointer()
-	    );
-	    
-        }
-        
-        if(which_attributes & GLUP_LIGHTING_ATTRIBUTES_BIT) {
-            lighting_dirty_ = true;
-            uniform_state_.toggle[GLUP_LIGHTING].set(glIsEnabled(GL_LIGHTING));
-            GLfloat light[4];
-            glGetLightfv(GL_LIGHT0, GL_POSITION, light);
-            copy_vector(uniform_state_.light_vector.get_pointer(), light, 3);
-        }            
-
-        if(which_attributes & GLUP_COLORS_ATTRIBUTES_BIT) {
-            glGetMaterialfv(
-                GL_FRONT, GL_DIFFUSE,
-                uniform_state_.color[GLUP_FRONT_COLOR].get_pointer()
-            );
-            glGetMaterialfv(
-                GL_BACK, GL_DIFFUSE,
-                uniform_state_.color[GLUP_BACK_COLOR].get_pointer()
-            );
-        }
-#endif        
-    }
-
-    void Context::copy_to_GL_state(GLUPbitfield which_attributes) {
-#ifndef GEO_GL_LEGACY
-        geo_argused(which_attributes);
-        return;
-#else        
-        // No "GL state" in core profile.
-        if(use_core_profile_) {
-            return;
-        }
-
-        GLint matrix_mode_save;
-        glGetIntegerv(GL_MATRIX_MODE, &matrix_mode_save);
-
-        if(which_attributes & GLUP_MATRICES_ATTRIBUTES_BIT) {
-            glMatrixMode(GL_PROJECTION);
-            glLoadMatrixf(matrix_stack_[GLUP_PROJECTION_MATRIX].top());
-            glMatrixMode(GL_MODELVIEW);
-            glLoadMatrixf(matrix_stack_[GLUP_MODELVIEW_MATRIX].top());
-            glMatrixMode(GL_TEXTURE);
-            glLoadMatrixf(matrix_stack_[GLUP_TEXTURE_MATRIX].top());
-        }
-
-        if(which_attributes & GLUP_CLIPPING_ATTRIBUTES_BIT) {
-            if(uniform_state_.toggle[GLUP_CLIPPING].get()) {
-                glEnable(GL_CLIP_PLANE0);
-            } else {
-                glDisable(GL_CLIP_PLANE0);
-            }
-            GLdouble clip_plane_d[4];
-            glGetClipPlane(GL_CLIP_PLANE0, clip_plane_d);
-            copy_vector(
-                clip_plane_d, uniform_state_.clip_plane.get_pointer(), 4
-            );
-            glMatrixMode(GL_MODELVIEW);
-            glPushMatrix();
-            glLoadIdentity();
-            glClipPlane(GL_CLIP_PLANE0, clip_plane_d);
-            glPopMatrix();
-        }
-
-        if(which_attributes & GLUP_LIGHTING_ATTRIBUTES_BIT) {
-            if(uniform_state_.toggle[GLUP_LIGHTING].get()) {
-                glEnable(GL_LIGHTING);
-                glEnable(GL_LIGHT0);
-            } else {
-                glDisable(GL_LIGHTING);
-                glDisable(GL_LIGHT0);
-            }
-            GLfloat light[4];
-            copy_vector(light, uniform_state_.light_vector.get_pointer(), 3);
-            light[3] = 0.0f;
-            glMatrixMode(GL_MODELVIEW);
-            glPushMatrix();
-            glLoadIdentity();
-            glLightfv(GL_LIGHT0, GL_POSITION, light);
-            glPopMatrix();
-        }
-
-        if(which_attributes & GLUP_COLORS_ATTRIBUTES_BIT) {
-            glMaterialfv(
-                GL_FRONT, GL_DIFFUSE,
-                uniform_state_.color[GLUP_FRONT_COLOR].get_pointer()
-            );
-            glMaterialfv(
-                GL_BACK, GL_DIFFUSE,
-                uniform_state_.color[GLUP_BACK_COLOR].get_pointer()
-            );
-        }
-
-        glMatrixMode(GLenum(matrix_mode_save));
-#endif        
     }
     
     void Context::bind_uniform_state(GLuint program) {
@@ -1272,7 +1120,7 @@ namespace GLUP {
     }
 
     void Context::prepare_to_draw(GLUPprimitive primitive) {
-#ifndef GEO_GL_150
+#ifndef GEO_GL_440
         geo_argused(primitive);
 #else
 
@@ -1459,6 +1307,7 @@ namespace GLUP {
             update_lighting();
         }
 #ifdef GEO_GL_150
+	#ifdef GL_CLIP_DISTANCE0
         if(!use_ES_profile_) {
             if(uniform_state_.toggle[GLUP_CLIPPING].get()) {
                 glEnable(GL_CLIP_DISTANCE0);
@@ -1466,6 +1315,7 @@ namespace GLUP {
                 glDisable(GL_CLIP_DISTANCE0);
             }
         }
+	#endif
         if(uniform_buffer_ != 0) {
             glBindBuffer(GL_UNIFORM_BUFFER, uniform_buffer_);
             glBufferSubData(
@@ -1529,7 +1379,7 @@ namespace GLUP {
                 primitive_info_[immediate_state_.primitive()].GL_primitive,
                 GLsizei(nb_elements),
                 GL_UNSIGNED_SHORT,
-                0
+                nullptr
             );
         } else {
             glDrawArrays(
@@ -1759,7 +1609,7 @@ namespace GLUP {
                     GL_UNSIGNED_SHORT, // components are bytes
                     GL_FALSE,          // do not normalize
                     0,                 // stride
-                    0          // pointer (relative to bound VBO beginning)
+                    nullptr            // pointer (relative to bound VBO beginning)
                 );
             }
             
@@ -1989,8 +1839,8 @@ namespace GLUP {
                 GLint(immediate_state_.buffer[i].dimension()),
                 GL_FLOAT,
                 GL_FALSE,
-                0,  // stride
-                0   // pointer (relative to bound VBO beginning)
+                0,      // stride
+                nullptr // pointer (relative to bound VBO beginning)
             );
         }
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -2076,7 +1926,7 @@ namespace GLUP {
                 GL_UNSIGNED_SHORT, // components are 16 bits integers
                 GL_FALSE,          // do not normalize
                 0,                 // stride
-                0                  // pointer (relative to bound VBO beginning)
+                nullptr            // pointer (relative to bound VBO beginning)
             );
             glBindBuffer(GL_ARRAY_BUFFER, 0);
             glupBindVertexArray(0);
@@ -2166,7 +2016,7 @@ namespace GLUP {
     }
     
     const MarchingCell& Context::get_marching_cell() const {
-        const MarchingCell* result = nil;
+        const MarchingCell* result = nullptr;
         switch(primitive_source_) {
         case GLUP_TETRAHEDRA:
             result = &marching_tet_;

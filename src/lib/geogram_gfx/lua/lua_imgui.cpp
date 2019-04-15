@@ -46,13 +46,17 @@
 #include <geogram_gfx/lua/lua_imgui.h>
 #include <geogram_gfx/glup_viewer/glup_viewer_gui.h>
 #include <geogram_gfx/ImGui_ext/imgui_ext.h>
+#include <geogram_gfx/ImGui_ext/icon_font.h>
 #include <geogram/lua/lua_wrap.h>
+#include <geogram/basic/string.h>
+#include <map>
 
 extern void LoadImguiBindings();
 extern lua_State* lState;
 
 namespace {
     using namespace GEO;
+
     
     int wrapper_TextInput(lua_State* L) {
 	
@@ -358,7 +362,7 @@ namespace {
 	char filename[geo_imgui_string_length];
 
 	const char* filename_in = lua_tostring(L,2);
-	if(filename_in != nil) {
+	if(filename_in != nullptr) {
 	    if(strlen(filename_in) > geo_imgui_string_length + 1) {
 		Logger::err("ImGui") << "Max file name length exceeded"
 				     << std::endl;
@@ -491,7 +495,7 @@ namespace {
 		L, "'imgui.ShowStyleEditor()' invalid number of arguments"
 	    );
 	}
-	ImGui::ShowStyleEditor(nil);
+	ImGui::ShowStyleEditor(nullptr);
 	return 0;
     }
 
@@ -515,7 +519,59 @@ namespace {
 	ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[idx]);
 	return 0;
     }
-    
+
+    int wrapper_font_icon(lua_State* L) {
+	if(lua_gettop(L) != 1) {
+	    return luaL_error(
+		L, "'imgui.font_icon()' invalid number of arguments"
+	    );
+	}
+	if(!lua_isstring(L,1)) {
+	    return luaL_error(
+		L, "'imgui.font_icon()' argument is not a string"
+	    );
+	}
+	const char* K = lua_tostring(L,1);
+	wchar_t result[2];
+	result[0] = icon_wchar(K);
+	result[1] = '\0';	
+	std::string result_str = String::wchar_to_UTF8(result);
+	lua_pushstring(L, result_str.c_str());
+	return 1;
+    }
+
+    int wrapper_BeginTabBar(lua_State* L) {
+	if(lua_gettop(L) != 1) {
+	    return luaL_error(
+		L, "'imgui.BeginTabBar()' invalid number of arguments"
+	    );
+	}
+	if(!lua_isstring(L,1)) {
+	    return luaL_error(
+		L, "'imgui.BeinTabBar()' argument is not a string"
+	    );
+	}
+	const char* K = lua_tostring(L,1);
+	ImGui::BeginTabBar(K);
+	return 0;
+    }
+
+    int wrapper_BeginTabItem(lua_State* L) {
+	if(lua_gettop(L) != 1) {
+	    return luaL_error(
+		L, "'imgui.BeginTabItem()' invalid number of arguments"
+	    );
+	}
+	if(!lua_isstring(L,1)) {
+	    return luaL_error(
+		L, "'imgui.BeginTabItem()' argument is not a string"
+	    );
+	}
+	const char* K = lua_tostring(L,1);
+	lua_pushboolean(L,ImGui::BeginTabItem(K));
+	return 1;
+    }
+
 }
 
 void init_lua_imgui(lua_State* L) {
@@ -540,9 +596,11 @@ void init_lua_imgui(lua_State* L) {
     lua_pushinteger(L, ImGuiCond_Appearing);
     lua_setglobal(L,"ImGuiCond_Appearing");
 
-
     lua_pushinteger(L, ImGuiSelectableFlags_AllowDoubleClick);
     lua_setglobal(L, "ImGuiSelectableFlags_AllowDoubleClick");    
+
+    lua_pushinteger(L, ImGuiCol_Button);
+    lua_setglobal(L, "ImGuiCol_Button");    
     
     lua_getglobal(L, "imgui");
 
@@ -598,6 +656,17 @@ void init_lua_imgui(lua_State* L) {
     lua_pushcfunction(L,wrapper_PushFont);
     lua_settable(L,-3);
 
+    lua_pushliteral(L,"font_icon");
+    lua_pushcfunction(L,wrapper_font_icon);
+    lua_settable(L,-3);
+
+    lua_pushliteral(L,"BeginTabBar");
+    lua_pushcfunction(L,wrapper_BeginTabBar);
+    lua_settable(L,-3);
+
+    lua_pushliteral(L,"BeginTabItem");
+    lua_pushcfunction(L,wrapper_BeginTabItem);
+    lua_settable(L,-3);
     
     lua_pop(L,1);
 }

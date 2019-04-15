@@ -78,6 +78,15 @@ namespace GEO {
          */
         MeshFacetsAABB(Mesh& M, bool reorder = true);
 
+
+	/**
+	 * \brief Gets the mesh.
+	 * \return a const reference to the mesh.
+	 */
+	const Mesh& mesh() const {
+	    return mesh_;
+	}
+	
         /**
          * \brief Computes all the pairs of intersecting facets.
          * \param[in] action ACTION::operator(index_t,index_t) is
@@ -143,6 +152,17 @@ namespace GEO {
         }
 
         /**
+         * \brief Finds the nearest facet from an arbitrary 3d query point.
+         * \param[in] p query point
+         * \return the index of the facet nearest to point p.
+         */
+        index_t nearest_facet(const vec3& p) const {
+	    vec3 nearest_point;
+	    double sq_dist;
+	    return nearest_facet(p, nearest_point, sq_dist);
+	}
+    
+        /**
          * \brief Computes the nearest point and nearest facet from
          * a query point, using user-specified hint.
          *
@@ -190,6 +210,33 @@ namespace GEO {
             return result;
         }
 
+	/**
+	 * \brief Tests whether this surface mesh has an intersection
+	 *  with a segment.
+	 * \param[in] q1 , q2 the two extremities of the segment.
+	 * \retval true if there exists an intersection between [q1 , q2]
+	 *  and a facet of the mesh.
+	 * \retval false otherwise.
+	 */
+	bool segment_intersection(const vec3& q1, const vec3& q2) const;
+
+
+	/**
+	 * \brief Finds the intersection between a segment and a surface that
+	 *  is nearest to the first extremity of the segment.
+	 * \param[in] q1 , q2 the two extremities of the segment.
+	 * \param[out] t if there was an intersection, it is t*q2 + (1-t)*q1
+	 * \param[out] f the intersected nearest facet or index_t(-1) if there
+	 *  was no intersection.
+	 * \retval true if there exists at least an intersection between [q1 , q2]
+	 *  and a facet of the mesh.
+	 * \retval false otherwise.
+	 */
+	bool segment_nearest_intersection(
+	    const vec3& q1, const vec3& q2, double& t, index_t& f
+	) const;
+
+	
     protected:
 
 
@@ -347,6 +394,43 @@ namespace GEO {
             index_t n, index_t b, index_t e
         ) const;
 
+        /**
+         * \brief The recursive function used by the implementation
+         *  of segment_intersection()
+	 * \param[in] q1 , q2 the segment
+	 * \param[in] dirinv precomputed 1/(q2.x-q1.x), 1/(q2.y-q1.y), 1/(q2.z-q1.z)
+         * \param[in] n index of the current node in the AABB tree
+         * \param[in] b index of the first facet in the subtree under node \p n
+         * \param[in] e one position past the index of the last facet in the
+         *  subtree under node \p n
+	 * \retval true if their was an intersection
+	 * \retval false otherwise
+	 */
+	bool segment_intersection_recursive(
+	    const vec3& q1, const vec3& q2, const vec3& dirinv,
+	    index_t n, index_t b, index_t e
+	) const;
+
+        /**
+         * \brief The recursive function used by the implementation
+         *  of segment_nearest_intersection()
+	 * \param[in] q1 , q2 the segment
+	 * \param[in] dirinv precomputed 1/(q2.x-q1.x), 1/(q2.y-q1.y), 1/(q2.z-q1.z)
+         * \param[in] n index of the current node in the AABB tree
+         * \param[in] b index of the first facet in the subtree under node \p n
+         * \param[in] e one position past the index of the last facet in the
+         *  subtree under node \p n
+	 * \param[in,out] t the coordinate along [q1,q2] of the nearest 
+	 *   intersection so-far.
+	 * \param[in,out] f the nearest intersected facet so-far.
+	 */
+	void segment_nearest_intersection_recursive(
+	    const vec3& q1, const vec3& q2, const vec3& dirinv,
+	    index_t n, index_t b, index_t e,
+	    double& t, index_t& f
+	) const;
+
+	
     protected:
         vector<Box> bboxes_;
         Mesh& mesh_;
@@ -379,19 +463,26 @@ namespace GEO {
          */
         MeshCellsAABB(Mesh& M, bool reorder = true);
 
+	/**
+	 * \brief Gets the mesh.
+	 * \return a const reference to the mesh.
+	 */
+	const Mesh& mesh() const {
+	    return mesh_;
+	}
+	
         /**
          * \brief Finds the index of a tetrahedron that contains a query point
          * \param[in] p a const reference to the query point
-         * \param[in] exact specifies whether exact predicates should be used
          * \return the index of one of the tetrahedra that contains \p p or
          *  NO_TET if \p p is outside the mesh.
          * \note The input mesh needs to be tetrahedralized. If the mesh has
          *   arbitrary cells, then one may use instead containing_boxes().
          */
-        index_t containing_tet(const vec3& p, bool exact =true) const {
+        index_t containing_tet(const vec3& p) const {
             geo_debug_assert(mesh_.cells.are_simplices());
             return containing_tet_recursive(
-                p, exact, 1, 0, mesh_.cells.nb()
+                p, 1, 0, mesh_.cells.nb()
             );
         }
 
@@ -417,7 +508,21 @@ namespace GEO {
             );
         }
 
-
+        /**
+         * \brief Computes all the intersections between a given
+         *  box and the bounding boxes of all the cells.
+         * \param[in] action a function that takes as argument
+	 *  an index_t (cell index) invoked for all cells that 
+	 *  have a bounding box that intersects \p box_in.
+         */
+        void compute_bbox_cell_bbox_intersections(
+            const Box& box_in,
+            std::function<void(index_t)> action
+        ) const {
+            bbox_intersect_recursive(
+                action, box_in, 1, 0, mesh_.cells.nb()
+            );
+        }
 
         /**
          * \brief Finds all the cells such that their bounding
@@ -488,12 +593,56 @@ namespace GEO {
             bbox_intersect_recursive(action, box, node_r, m, e);
         }
 
+        /**
+         * \brief Computes all the cells that have a bbox that
+         *  intersects a given bbox in a sub-tree of the AABB tree.
+         *
+         * Note that the tree structure is completely implicit,
+         *  therefore the bounds of the (continuous) facet indices
+         *  sequences that correspond to the facets contained
+         *  in the two nodes are sent as well as the node indices.
+         *
+         * \param[in] action a function that takes as argument
+	 *  an index_t (cell index) invoked for all cells that 
+	 *  has a bounding box that overlaps \p box.
+         * \param[in] box the query box
+         * \param[in] node index of the first node of the AABB tree
+         * \param[in] b index of the first facet in \p node
+         * \param[in] e one position past the index of the last
+         *  facet in \p node
+         */
+        void bbox_intersect_recursive(
+            std::function<void(index_t)> action,
+            const Box& box,
+            index_t node, index_t b, index_t e
+        ) const {
+            geo_debug_assert(e != b);
+
+            // Prune sub-tree that does not have intersection
+            if(!bboxes_overlap(box, bboxes_[node])) {
+                return;
+            }
+
+            // Leaf case
+            if(e == b+1) {
+                action(b);
+                return;
+            }
+
+            // Recursion
+            index_t m = b + (e - b) / 2;
+            index_t node_l = 2 * node;
+            index_t node_r = 2 * node + 1;
+
+            bbox_intersect_recursive(action, box, node_l, b, m);
+            bbox_intersect_recursive(action, box, node_r, m, e);
+        }
+    
         
         /**
          * \brief The recursive function used by the implementation
          *  of containing_tet().
          * \param[in] p a const reference to the query point
-         * \param[in] exact specifies whether exact predicates should be used
          * \param[in] n index of the current node in the AABB tree
          * \param[in] b index of the first tet in the subtree under node \p n
          * \param[in] e one position past the index of the last tet in the
@@ -502,7 +651,7 @@ namespace GEO {
          *  NO_TET if \p p is outside the mesh.
          */
         index_t containing_tet_recursive(
-            const vec3& p, bool exact, 
+            const vec3& p, 
             index_t n, index_t b, index_t e
         ) const;
 
