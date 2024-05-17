@@ -67,7 +67,7 @@ endif()
 ##############################################################################
 
 include(${GEOGRAM_SOURCE_DIR}/cmake/utilities.cmake)
-include(${GEOGRAM_SOURCE_DIR}/cmake/platforms/${VORPALINE_PLATFORM}/config.cmake)
+include(${GEOGRAM_SOURCE_DIR}/cmake/platforms/Win64-vs2015/config.cmake)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
